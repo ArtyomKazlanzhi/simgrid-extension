@@ -1,0 +1,19 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude/AI
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.zip
+node_modules/
+
+# Test files
+test-*.js

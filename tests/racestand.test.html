@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaceStand Test Suite</title>
+    <style>
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a0e17;
+            color: #e2e8f0;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #eab308; margin-bottom: 20px; }
+        h2 { color: #94a3b8; margin-top: 30px; border-bottom: 1px solid #1f2937; padding-bottom: 10px; }
+        .test-group { margin: 20px 0; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px; }
+        .test-result { padding: 8px 12px; margin: 5px 0; border-radius: 4px; display: flex; justify-content: space-between; }
+        .pass { background: rgba(34, 197, 94, 0.15); border-left: 3px solid #22c55e; }
+        .fail { background: rgba(239, 68, 68, 0.15); border-left: 3px solid #ef4444; }
+        .pass .status { color: #22c55e; font-weight: bold; }
+        .fail .status { color: #ef4444; font-weight: bold; }
+        .summary { margin-top: 30px; padding: 20px; background: #1f2937; border-radius: 8px; }
+        .summary-pass { color: #22c55e; }
+        .summary-fail { color: #ef4444; }
+        .error-details { font-size: 0.85em; color: #f87171; margin-top: 5px; padding-left: 15px; }
+        pre { background: #1f2937; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .bug-report { background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .bug-report h3 { color: #f59e0b; margin-top: 0; }
+        .fix-applied { background: rgba(34, 197, 94, 0.15); border: 1px solid #22c55e; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        .fix-applied h3 { color: #22c55e; margin-top: 0; }
+    </style>
+</head>
+<body>
+    <h1>RaceStand MVP - Test Suite</h1>
+    <div id="test-output"></div>
+
+    <script>
+        // ==========================================
+        // TEST FRAMEWORK
+        // ==========================================
+
+        const testResults = { passed: 0, failed: 0, tests: [] };
+
+        function assert(condition, message, details = '') {
+            if (condition) {
+                testResults.passed++;
+                testResults.tests.push({ name: message, passed: true });
+            } else {
+                testResults.failed++;
+                testResults.tests.push({ name: message, passed: false, details });
+            }
+            return condition;
+        }
+
+        function assertEqual(actual, expected, message) {
+            const passed = JSON.stringify(actual) === JSON.stringify(expected);
+            if (!passed) {
+                assert(false, message, `Expected: ${JSON.stringify(expected)}, Got: ${JSON.stringify(actual)}`);
+            } else {
+                assert(true, message);
+            }
+            return passed;
+        }
+
+        function assertClose(actual, expected, tolerance, message) {
+            const passed = Math.abs(actual - expected) <= tolerance;
+            if (!passed) {
+                assert(false, message, `Expected: ~${expected} (+/-${tolerance}), Got: ${actual}`);
+            } else {
+                assert(true, message);
+            }
+            return passed;
+        }
+
+        // ==========================================
+        // COPY OF APPLICATION FUNCTIONS FOR TESTING
+        // (Isolated from DOM dependencies)
+        // ==========================================
+
+        // Test state - isolated from main app
+        let testState = null;
+
+        function resetTestState(overrides = {}) {
+            testState = {
+                championship: {
+                    name: '',
+                    scoring: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1],
+                    totalRounds: 5,
+                    countBest: 5,
+                    flEnabled: false,
+                    flBonus: 1,
+                    targetPosition: 1,
+                    ...overrides.championship
+                },
+                competitors: overrides.competitors || []
+            };
+        }
+
+        // Calculate points for a single race
+        function calculateRacePoints(position, hasFastestLap) {
+            if (position === null || position === undefined) return 0;
+
+            const { scoring, flEnabled, flBonus } = testState.championship;
+            const positionPoints = scoring[position - 1] || 0;
+            const flPoints = (flEnabled && hasFastestLap) ? flBonus : 0;
+
+            return positionPoints + flPoints;
+        }
+
+        // Calculate total points with drop rounds
+        function calculateTotalPoints(results) {
+            const { countBest } = testState.championship;
+
+            const racePoints = results.map(r =>
+                calculateRacePoints(r.position, r.fastestLap)
+            );
+
+            // Sort descending and take best N
+            const sorted = [...racePoints].sort((a, b) => b - a);
+            const best = sorted.slice(0, countBest);
+
+            return best.reduce((sum, pts) => sum + pts, 0);
+        }
+
+        // Count position finishes (for tiebreaker)
+        function countPositionFinishes(results, position) {
+            return results.filter(r => r.position === position).length;
+        }
+
+        // Calculate standings for all competitors
+        function calculateStandings() {
+            const standings = testState.competitors.map(comp => {
+                const totalPoints = calculateTotalPoints(comp.results);
+                const wins = countPositionFinishes(comp.results, 1);
+
+                return {
+                    competitorId: comp.id,
+                    name: comp.name,
+                    isMyDriver: comp.isMyDriver,
+                    totalPoints,
+                    wins,
+                    results: comp.results
+                };
+            });
+
+            // Sort by points, then tiebreakers
+            standings.sort((a, b) => {
+                if (b.totalPoints !== a.totalPoints) {
+                    return b.totalPoints - a.totalPoints;
+                }
+
+                // Tiebreaker: count finishes from P1 down
+                for (let pos = 1; pos <= 20; pos++) {
+                    const aCount = countPositionFinishes(a.results, pos);
+                    const bCount = countPositionFinishes(b.results, pos);
+                    if (bCount !== aCount) return bCount - aCount;
+                }
+
+                // Final tiebreaker: alphabetical
+                return a.name.localeCompare(b.name);
+            });
+
+            // Assign ranks (handling ties)
+            let currentRank = 1;
+            standings.forEach((standing, index) => {
+                if (index > 0) {
+                    const prev = standings[index - 1];
+                    let isTied = standing.totalPoints === prev.totalPoints;
+                    if (isTied) {
+                        for (let pos = 1; pos <= 20; pos++) {
+                            const aCount = countPositionFinishes(standing.results, pos);
+                            const bCount = countPositionFinishes(prev.results, pos);
+                            if (aCount !== bCount) {
+                                isTied = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!isTied) {
+                        currentRank = index + 1;
+                    }
+                    standing.isTied = isTied;
+                } else {
+                    standing.isTied = false;
+                }
+                standing.rank = currentRank;
+            });
+
+            return standings;
+        }
+
+        // Calculate maximum possible points for a competitor
+        function calculateMaxPossiblePoints(competitor) {
+            const { scoring, countBest, flEnabled, flBonus } = testState.championship;
+            const maxRacePoints = (scoring[0] || 0) + (flEnabled ? flBonus : 0);
+
+            const currentRacePoints = competitor.results.map(r =>
+                calculateRacePoints(r.position, r.fastestLap)
+            );
+
+            const allPoints = [...currentRacePoints];
+            for (let i = 0; i < allPoints.length; i++) {
+                if (competitor.results[i].position === null) {
+                    allPoints[i] = maxRacePoints;
+                }
+            }
+
+            const sorted = [...allPoints].sort((a, b) => b - a);
+            return sorted.slice(0, countBest).reduce((sum, p) => sum + p, 0);
+        }
+
+        // Calculate minimum possible points for a competitor
+        function calculateMinPossiblePoints(competitor) {
+            const { countBest } = testState.championship;
+
+            const currentRacePoints = competitor.results.map(r =>
+                calculateRacePoints(r.position, r.fastestLap)
+            );
+
+            const sorted = [...currentRacePoints].sort((a, b) => b - a);
+            return sorted.slice(0, countBest).reduce((sum, p) => sum + p, 0);
+        }
+
+        // Helper to create competitor with results
+        function createCompetitor(name, results, isMyDriver = false) {
+            return {
+                id: `comp_${name.replace(/\s/g, '_')}`,
+                name,
+                isMyDriver,
+                results: results.map(r => ({
+                    position: r.position !== undefined ? r.position : r,
+                    fastestLap: r.fastestLap || false
+                }))
+            };
+        }
+
+        // Calculate position status
+        function calculatePositionStatus(myDriver, targetPosition) {
+            if (!myDriver || testState.competitors.length < 2) {
+                return { status: 'NONE', message: 'Add competitors to begin' };
+            }
+
+            const standings = calculateStandings();
+            const myStanding = standings.find(s => s.competitorId === myDriver.id);
+            const myCurrentRank = myStanding.rank;
+            const myCurrentPoints = myStanding.totalPoints;
+            const myMaxPoints = calculateMaxPossiblePoints(myDriver);
+            const myMinPoints = calculateMinPossiblePoints(myDriver);
+
+            const remainingRaces = myDriver.results.filter(r => r.position === null).length;
+            const hasRemainingRaces = remainingRaces > 0;
+
+            // Get all rivals
+            const allRivals = testState.competitors
+                .filter(c => c.id !== myDriver.id)
+                .map(rival => {
+                    const rivalStanding = standings.find(s => s.competitorId === rival.id);
+                    return {
+                        id: rival.id,
+                        name: rival.name,
+                        currentPoints: rivalStanding.totalPoints,
+                        currentRank: rivalStanding.rank,
+                        maxPoints: calculateMaxPossiblePoints(rival),
+                        minPoints: calculateMinPossiblePoints(rival)
+                    };
+                });
+
+            let status;
+
+            if (myCurrentRank <= targetPosition) {
+                // Also include tied rivals as threats (they can still beat us even if at same rank)
+                const threatsFromBelow = allRivals.filter(t =>
+                    (t.currentRank > targetPosition || t.currentRank === myCurrentRank) && t.maxPoints >= myMinPoints
+                );
+
+                if (threatsFromBelow.length === 0 && !hasRemainingRaces) {
+                    status = 'GUARANTEED';
+                } else if (threatsFromBelow.length === 0) {
+                    status = 'SECURED';
+                } else {
+                    status = 'ON_TRACK';
+                }
+            } else {
+                const targetRivalStanding = standings.find(s => s.rank === targetPosition);
+                const targetRivalComp = targetRivalStanding
+                    ? testState.competitors.find(c => c.id === targetRivalStanding.competitorId)
+                    : null;
+                const targetRivalMinPoints = targetRivalComp
+                    ? calculateMinPossiblePoints(targetRivalComp)
+                    : 0;
+
+                if (myMaxPoints > targetRivalMinPoints) {
+                    status = 'ACHIEVABLE';
+                } else {
+                    status = 'NOT_POSSIBLE';
+                }
+            }
+
+            return {
+                status,
+                myCurrentRank,
+                myCurrentPoints,
+                myMaxPoints,
+                myMinPoints,
+                remainingRaces
+            };
+        }
+
+        // Generate scenarios for remaining races
+        function generateScenarios(myDriver, targetPosition, remainingRaceIndices) {
+            const { scoring, countBest, flEnabled, flBonus } = testState.championship;
+            const standings = calculateStandings();
+
+            const maxPosition = Math.min(scoring.length + 3, 20);
+            const remainingRaces = remainingRaceIndices.length;
+
+            const currentRacePoints = myDriver.results.map(r =>
+                calculateRacePoints(r.position, r.fastestLap)
+            );
+
+            // Find key rival
+            let keyRivalComp = null;
+            const myStanding = standings.find(s => s.competitorId === myDriver.id);
+            const myCurrentRank = myStanding.rank;
+
+            if (myCurrentRank <= targetPosition) {
+                let rivalStanding = standings.find(s => s.rank === targetPosition + 1);
+                // If no one is at targetPosition + 1 (e.g., due to ties), look for rivals at the same rank
+                if (!rivalStanding) {
+                    const tiedRivals = standings.filter(s =>
+                        s.rank === myCurrentRank && s.competitorId !== myDriver.id
+                    );
+                    if (tiedRivals.length > 0) {
+                        rivalStanding = tiedRivals[0];
+                    }
+                }
+                if (rivalStanding) {
+                    keyRivalComp = testState.competitors.find(c => c.id === rivalStanding.competitorId);
+                }
+            } else {
+                const rivalStanding = standings.find(s => s.rank === targetPosition);
+                if (rivalStanding) {
+                    keyRivalComp = testState.competitors.find(c => c.id === rivalStanding.competitorId);
+                }
+            }
+
+            const rivalMinPoints = keyRivalComp ? calculateMinPossiblePoints(keyRivalComp) : 0;
+
+            // Helper to calculate rival's max points given user's positions in each scenario
+            // If user takes P1, rival can only get P2 at best in that race
+            function calcRivalMaxWithUserPositions(userPositions) {
+                if (!keyRivalComp) return 0;
+
+                const maxRacePoints = scoring[0] || 0;
+
+                // Get rival's current race points
+                const rivalRacePoints = keyRivalComp.results.map(r =>
+                    calculateRacePoints(r.position, r.fastestLap)
+                );
+
+                // For remaining races, calculate rival's max considering user's positions
+                userPositions.forEach((userPos, i) => {
+                    const raceIdx = remainingRaceIndices[i];
+                    // Rival's best position is one behind user (or P1 if user is outside top positions)
+                    const rivalBestPos = userPos + 1;
+                    const rivalBestPoints = scoring[rivalBestPos - 1] || 0;
+                    // If user takes P1, rival is limited to P2; otherwise rival can still get P1
+                    rivalRacePoints[raceIdx] = userPos <= 1 ? rivalBestPoints : maxRacePoints;
+                });
+
+                // Apply drop rounds
+                const sorted = [...rivalRacePoints].sort((a, b) => b - a);
+                return sorted.slice(0, countBest).reduce((sum, p) => sum + p, 0);
+            }
+
+            function calcPointsWithResults(positions) {
+                const allPoints = [...currentRacePoints];
+                positions.forEach((pos, i) => {
+                    const raceIdx = remainingRaceIndices[i];
+                    const racePoints = scoring[pos - 1] || 0;
+                    allPoints[raceIdx] = racePoints;
+                });
+
+                const sorted = [...allPoints].sort((a, b) => b - a);
+                return sorted.slice(0, countBest).reduce((sum, p) => sum + p, 0);
+            }
+
+            const scenarios = [];
+            const positionsToTry = [];
+            for (let p = 1; p <= maxPosition; p++) {
+                positionsToTry.push(p);
+            }
+
+            if (remainingRaces === 1) {
+                for (const pos of positionsToTry) {
+                    const myFinalPoints = calcPointsWithResults([pos]);
+                    const scenarioRivalMax = calcRivalMaxWithUserPositions([pos]);
+                    let status;
+
+                    if (myFinalPoints > scenarioRivalMax) {
+                        status = 'SAFE';
+                    } else if (myFinalPoints > rivalMinPoints) {
+                        status = 'RISK';
+                    } else {
+                        status = 'FAIL';
+                    }
+
+                    scenarios.push({
+                        results: [pos],
+                        myPoints: myFinalPoints,
+                        rivalMaxPoints: scenarioRivalMax,
+                        status
+                    });
+                }
+            } else if (remainingRaces === 2) {
+                for (const pos1 of positionsToTry) {
+                    for (const pos2 of positionsToTry) {
+                        if (pos1 <= pos2) {
+                            const myFinalPoints = calcPointsWithResults([pos1, pos2]);
+                            const scenarioRivalMax = calcRivalMaxWithUserPositions([pos1, pos2]);
+                            let status;
+
+                            if (myFinalPoints > scenarioRivalMax) {
+                                status = 'SAFE';
+                            } else if (myFinalPoints > rivalMinPoints) {
+                                status = 'RISK';
+                            } else {
+                                status = 'FAIL';
+                            }
+
+                            scenarios.push({
+                                results: [pos1, pos2],
+                                myPoints: myFinalPoints,
+                                rivalMaxPoints: scenarioRivalMax,
+                                status
+                            });
+                        }
+                    }
+                }
+            }
+
+            return scenarios;
+        }
+
+        // ==========================================
+        // TEST SUITES
+        // ==========================================
+
+        function runTests() {
+            const output = document.getElementById('test-output');
+            let html = '';
+
+            // ==========================================
+            // TEST 1: SCORING TABLE FORMATS
+            // ==========================================
+            html += '<h2>1. Scoring Table Formats</h2><div class="test-group">';
+
+            // F1 Default scoring
+            resetTestState({ championship: { scoring: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1] } });
+            assertEqual(calculateRacePoints(1, false), 25, 'F1 scoring: P1 = 25 points');
+            assertEqual(calculateRacePoints(2, false), 18, 'F1 scoring: P2 = 18 points');
+            assertEqual(calculateRacePoints(10, false), 1, 'F1 scoring: P10 = 1 point');
+            assertEqual(calculateRacePoints(11, false), 0, 'F1 scoring: P11 = 0 points (outside scoring)');
+
+            // Custom scoring (fewer positions)
+            resetTestState({ championship: { scoring: [30, 27, 24, 21, 18] } });
+            assertEqual(calculateRacePoints(1, false), 30, 'Custom scoring: P1 = 30 points');
+            assertEqual(calculateRacePoints(5, false), 18, 'Custom scoring: P5 = 18 points');
+            assertEqual(calculateRacePoints(6, false), 0, 'Custom scoring: P6 = 0 points (outside table)');
+
+            // Single value scoring (only P1 gets points)
+            resetTestState({ championship: { scoring: [10] } });
+            assertEqual(calculateRacePoints(1, false), 10, 'Single value: P1 = 10 points');
+            assertEqual(calculateRacePoints(2, false), 0, 'Single value: P2 = 0 points');
+            assertEqual(calculateRacePoints(20, false), 0, 'Single value: P20 = 0 points');
+
+            // Fastest lap bonus
+            resetTestState({ championship: { scoring: [25, 18, 15], flEnabled: true, flBonus: 1 } });
+            assertEqual(calculateRacePoints(1, true), 26, 'FL bonus: P1 + FL = 26 points');
+            assertEqual(calculateRacePoints(1, false), 25, 'FL bonus: P1 without FL = 25 points');
+            assertEqual(calculateRacePoints(3, true), 16, 'FL bonus: P3 + FL = 16 points');
+
+            // Larger FL bonus
+            resetTestState({ championship: { scoring: [25, 18], flEnabled: true, flBonus: 5 } });
+            assertEqual(calculateRacePoints(1, true), 30, 'FL bonus 5pts: P1 + FL = 30 points');
+
+            // Null/undefined positions
+            assertEqual(calculateRacePoints(null, false), 0, 'Null position = 0 points');
+            assertEqual(calculateRacePoints(undefined, false), 0, 'Undefined position = 0 points');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 2: DROP ROUNDS CALCULATION
+            // ==========================================
+            html += '<h2>2. Drop Rounds Calculation</h2><div class="test-group">';
+
+            // Best 4 of 5
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 5,
+                    countBest: 4
+                }
+            });
+
+            // Results: 25, 18, 15, 12, 10 -> drop lowest (10), total = 70
+            const results1 = [
+                { position: 1, fastestLap: false },  // 25
+                { position: 2, fastestLap: false },  // 18
+                { position: 3, fastestLap: false },  // 15
+                { position: 4, fastestLap: false },  // 12
+                { position: 5, fastestLap: false }   // 10
+            ];
+            assertEqual(calculateTotalPoints(results1), 70, 'Best 4 of 5: drops lowest (25+18+15+12=70)');
+
+            // Results: 25, 25, 0, 0, 10 -> best 4: 25, 25, 10, 0 = 60
+            const results2 = [
+                { position: 1, fastestLap: false },   // 25
+                { position: 1, fastestLap: false },   // 25
+                { position: null, fastestLap: false }, // 0
+                { position: null, fastestLap: false }, // 0
+                { position: 5, fastestLap: false }    // 10
+            ];
+            assertEqual(calculateTotalPoints(results2), 60, 'Best 4 of 5 with DNFs: 25+25+10+0=60');
+
+            // Best 8 of 10
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1],
+                    totalRounds: 10,
+                    countBest: 8
+                }
+            });
+
+            const results3 = [];
+            for (let i = 0; i < 10; i++) {
+                results3.push({ position: i + 1, fastestLap: false });
+            }
+            // P1-P10: 25+18+15+12+10+8+6+4+2+1, best 8 = drops 2+1 = 25+18+15+12+10+8+6+4 = 98
+            assertEqual(calculateTotalPoints(results3), 98, 'Best 8 of 10: drops 2 lowest (98 pts)');
+
+            // No drops (all count)
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 5,
+                    countBest: 5
+                }
+            });
+
+            assertEqual(calculateTotalPoints(results1), 80, 'Best 5 of 5: no drops, all count (80 pts)');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 3: TIEBREAKER SCENARIOS
+            // ==========================================
+            html += '<h2>3. Tiebreaker Scenarios</h2><div class="test-group">';
+
+            // Same points, different wins
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: 1 },   // 25
+                        { position: 3 },   // 15
+                        { position: 3 }    // 15
+                    ], true),              // Total: 55, 1 win
+                    createCompetitor('Bob', [
+                        { position: 2 },   // 18
+                        { position: 2 },   // 18
+                        { position: 2 }    // 18
+                    ])                     // Total: 54, 0 wins - wait, different total
+                ]
+            });
+
+            // Better test: same points, different wins
+            resetTestState({
+                championship: {
+                    scoring: [10, 7, 5],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: 1 },   // 10
+                        { position: 3 },   // 5
+                        { position: 3 }    // 5
+                    ], true),              // Total: 20, 1 win
+                    createCompetitor('Bob', [
+                        { position: 2 },   // 7
+                        { position: 2 },   // 7
+                        { position: 3 }    // 5
+                    ])                     // Total: 19 - still different!
+                ]
+            });
+
+            // Let's make them exactly equal
+            resetTestState({
+                championship: {
+                    scoring: [10, 6, 4],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: 1 },   // 10
+                        { position: 3 },   // 4
+                        { position: 3 }    // 4
+                    ], true),              // Total: 18, 1 win
+                    createCompetitor('Bob', [
+                        { position: 2 },   // 6
+                        { position: 2 },   // 6
+                        { position: 2 }    // 6
+                    ])                     // Total: 18, 0 wins
+                ]
+            });
+
+            let standings = calculateStandings();
+            assertEqual(standings[0].name, 'Alice', 'Tiebreaker: same points (18), more wins (1 vs 0) -> Alice wins');
+            assertEqual(standings[0].rank, 1, 'Alice gets rank 1');
+            assertEqual(standings[1].name, 'Bob', 'Bob ranks second');
+            assertEqual(standings[1].rank, 2, 'Bob gets rank 2');
+
+            // Same points, same wins, different P2s
+            resetTestState({
+                championship: {
+                    scoring: [10, 6, 4],
+                    totalRounds: 4,
+                    countBest: 4
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: 1 },   // 10
+                        { position: 2 },   // 6
+                        { position: 3 },   // 4
+                        { position: 3 }    // 4
+                    ], true),              // Total: 24, 1 win, 1 P2
+                    createCompetitor('Bob', [
+                        { position: 1 },   // 10
+                        { position: 3 },   // 4
+                        { position: 2 },   // 6
+                        { position: 3 }    // 4
+                    ])                     // Total: 24, 1 win, 1 P2 - same!
+                ]
+            });
+
+            // They're completely equal, should go to alphabetical
+            standings = calculateStandings();
+            assertEqual(standings[0].name, 'Alice', 'Completely tied -> alphabetical: Alice first');
+            assertEqual(standings[0].isTied, false, 'First in standings not marked as tied');
+            assertEqual(standings[1].name, 'Bob', 'Completely tied -> alphabetical: Bob second');
+            assertEqual(standings[1].isTied, true, 'Second with same record marked as tied');
+
+            // Different P2 counts
+            resetTestState({
+                championship: {
+                    scoring: [10, 6, 4, 2],
+                    totalRounds: 4,
+                    countBest: 4
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: 1 },   // 10
+                        { position: 2 },   // 6
+                        { position: 2 },   // 6
+                        { position: 4 }    // 2
+                    ], true),              // Total: 24, 1 win, 2 P2s
+                    createCompetitor('Bob', [
+                        { position: 1 },   // 10
+                        { position: 2 },   // 6
+                        { position: 3 },   // 4
+                        { position: 3 }    // 4
+                    ])                     // Total: 24, 1 win, 1 P2
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings[0].name, 'Alice', 'Same points (24), same wins (1), more P2s (2 vs 1) -> Alice wins');
+            assertEqual(standings[1].name, 'Bob', 'Bob ranks second with fewer P2s');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 4: TARGET POSITION CALCULATIONS
+            // ==========================================
+            html += '<h2>4. Target Position Calculations</h2><div class="test-group">';
+
+            // GUARANTEED status - no races left, leader unbeatable
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Leader', [
+                        { position: 1 },   // 25
+                        { position: 1 },   // 25
+                        { position: 1 }    // 25
+                    ], true),              // Total: 75
+                    createCompetitor('Challenger', [
+                        { position: 2 },   // 18
+                        { position: 2 },   // 18
+                        { position: 2 }    // 18
+                    ])                     // Total: 54
+                ]
+            });
+
+            let status = calculatePositionStatus(testState.competitors[0], 1);
+            assertEqual(status.status, 'GUARANTEED', 'P1 GUARANTEED when all races done and unbeatable lead');
+            assertEqual(status.myCurrentRank, 1, 'Current rank is 1');
+            assertEqual(status.myCurrentPoints, 75, 'Current points correct');
+
+            // ON_TRACK status - leading but can be caught
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Leader', [
+                        { position: 1 },   // 25
+                        { position: 1 },   // 25
+                        { position: null } // TBD
+                    ], true),              // Current: 50, can reach 75
+                    createCompetitor('Challenger', [
+                        { position: 2 },   // 18
+                        { position: 2 },   // 18
+                        { position: null } // TBD
+                    ])                     // Current: 36, can reach 61
+                ]
+            });
+
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            assertEqual(status.status, 'ON_TRACK', 'P1 ON_TRACK when leading but races remain');
+
+            // ACHIEVABLE status - behind but can catch up
+            status = calculatePositionStatus(testState.competitors[1], 1);
+            // Challenger is behind but Leader's min is 50, Challenger's max is 61
+            assertEqual(status.status, 'ACHIEVABLE', 'P1 ACHIEVABLE when behind but max > rival min');
+
+            // NOT_POSSIBLE status - mathematically eliminated
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Leader', [
+                        { position: 1 },   // 25
+                        { position: 1 },   // 25
+                        { position: 1 }    // 25
+                    ], false),             // Total: 75
+                    createCompetitor('Challenger', [
+                        { position: 2 },   // 18
+                        { position: 2 },   // 18
+                        { position: 2 }    // 18
+                    ], true)               // Total: 54
+                ]
+            });
+
+            status = calculatePositionStatus(testState.competitors[1], 1);
+            assertEqual(status.status, 'NOT_POSSIBLE', 'P1 NOT_POSSIBLE when mathematically eliminated');
+
+            // Target P3 - podium
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('First', [{ position: 1 }, { position: 1 }, { position: 1 }], false),
+                    createCompetitor('Second', [{ position: 2 }, { position: 2 }, { position: 2 }], false),
+                    createCompetitor('Third', [{ position: 3 }, { position: 3 }, { position: 3 }], true),
+                    createCompetitor('Fourth', [{ position: 4 }, { position: 4 }, { position: 4 }], false)
+                ]
+            });
+
+            status = calculatePositionStatus(testState.competitors[2], 3);
+            assertEqual(status.status, 'GUARANTEED', 'P3 GUARANTEED for third place driver');
+            assertEqual(status.myCurrentRank, 3, 'Current rank is 3');
+
+            // Target last place - should always be achievable
+            status = calculatePositionStatus(testState.competitors[3], 4);
+            assertEqual(status.status, 'GUARANTEED', 'Target last place is GUARANTEED for last place driver');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 5: WHAT'S NEEDED / SCENARIO CALCULATOR
+            // ==========================================
+            html += '<h2>5. What\'s Needed / Scenario Calculator</h2><div class="test-group">';
+
+            // Single race remaining
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Leader', [
+                        { position: 1 },   // 25
+                        { position: 2 },   // 18
+                        { position: null } // TBD
+                    ], true),              // Current: 43
+                    createCompetitor('Challenger', [
+                        { position: 2 },   // 18
+                        { position: 1 },   // 25
+                        { position: null } // TBD
+                    ])                     // Current: 43
+                ]
+            });
+
+            let scenarios = generateScenarios(testState.competitors[0], 1, [2]);
+            assert(scenarios.length > 0, 'Scenarios generated for single remaining race');
+
+            // P1 result should be SAFE (25 > challenger's max of 68)
+            const p1Scenario = scenarios.find(s => s.results[0] === 1);
+            assert(p1Scenario !== undefined, 'P1 scenario exists');
+            assertEqual(p1Scenario.myPoints, 68, 'P1 finish gives 68 total points (43 + 25)');
+            // Challenger max: 43 + 25 = 68, so P1 is actually RISK not SAFE
+            assertEqual(p1Scenario.status, 'SAFE', 'P1 result is SAFE because rival can only get P2 (61 pts) when user takes P1');
+
+            // Points calculation accuracy
+            const p3Scenario = scenarios.find(s => s.results[0] === 3);
+            assert(p3Scenario !== undefined, 'P3 scenario exists');
+            assertEqual(p3Scenario.myPoints, 58, 'P3 finish gives 58 total points (43 + 15)');
+
+            // Two races remaining
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 4,
+                    countBest: 4
+                },
+                competitors: [
+                    createCompetitor('Leader', [
+                        { position: 1 },   // 25
+                        { position: 1 },   // 25
+                        { position: null },
+                        { position: null }
+                    ], true),              // Current: 50
+                    createCompetitor('Challenger', [
+                        { position: 2 },   // 18
+                        { position: 2 },   // 18
+                        { position: null },
+                        { position: null }
+                    ])                     // Current: 36
+                ]
+            });
+
+            scenarios = generateScenarios(testState.competitors[0], 1, [2, 3]);
+            assert(scenarios.length > 0, 'Scenarios generated for two remaining races');
+
+            // Find P1+P1 scenario
+            const p1p1Scenario = scenarios.find(s => s.results[0] === 1 && s.results[1] === 1);
+            assert(p1p1Scenario !== undefined, 'P1+P1 scenario exists');
+            assertEqual(p1p1Scenario.myPoints, 100, 'P1+P1 gives 100 total points');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 6: SCENARIO TABLE ACCURACY
+            // ==========================================
+            html += '<h2>6. Scenario Table Accuracy</h2><div class="test-group">';
+
+            // Verify SAFE/RISK/FAIL classification
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Me', [
+                        { position: 1 },   // 25
+                        { position: 1 },   // 25
+                        { position: null }
+                    ], true),              // Current: 50, max: 75, min: 50
+                    createCompetitor('Rival', [
+                        { position: 5 },   // 10
+                        { position: 5 },   // 10
+                        { position: null }
+                    ])                     // Current: 20, max: 45, min: 20
+                ]
+            });
+
+            scenarios = generateScenarios(testState.competitors[0], 1, [2]);
+
+            // All scenarios should be SAFE since our minimum (50) > rival's max (45)
+            const allSafe = scenarios.every(s => s.status === 'SAFE');
+            assert(allSafe, 'All scenarios SAFE when min points > rival max');
+
+            // Now a closer race
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Me', [
+                        { position: 1 },   // 25
+                        { position: 5 },   // 10
+                        { position: null }
+                    ], true),              // Current: 35, max: 60, min: 35
+                    createCompetitor('Rival', [
+                        { position: 2 },   // 18
+                        { position: 2 },   // 18
+                        { position: null }
+                    ])                     // Current: 36, max: 61, min: 36
+                ]
+            });
+
+            scenarios = generateScenarios(testState.competitors[0], 1, [2]);
+
+            // P1 scenario: 35 + 25 = 60 > rival max 61? No, 60 < 61, so FAIL
+            const myP1 = scenarios.find(s => s.results[0] === 1);
+            // Actually we're behind (35 vs 36), so we're targeting to catch up
+            // My P1 = 60, rival min = 36, rival max = 61
+            // 60 > 36 but 60 < 61, so it's RISK
+            assertEqual(myP1.status, 'SAFE', 'P1 result is SAFE because rival limited to P2 (54 pts) when user takes P1 (60 pts)');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 7: 20+ DRIVERS PERFORMANCE
+            // ==========================================
+            html += '<h2>7. 20+ Drivers Performance</h2><div class="test-group">';
+
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1],
+                    totalRounds: 10,
+                    countBest: 8
+                },
+                competitors: []
+            });
+
+            // Add 25 drivers with various results
+            for (let i = 0; i < 25; i++) {
+                const results = [];
+                for (let r = 0; r < 10; r++) {
+                    // Simulate varied positions
+                    const pos = ((i + r) % 20) + 1;
+                    results.push({ position: pos, fastestLap: r === 0 && i === 0 });
+                }
+                testState.competitors.push(createCompetitor(`Driver ${i + 1}`, results, i === 0));
+            }
+
+            const startTime = performance.now();
+            standings = calculateStandings();
+            const endTime = performance.now();
+
+            assertEqual(standings.length, 25, '25 drivers in standings');
+            assert(endTime - startTime < 100, `Standings calculation under 100ms (took ${(endTime - startTime).toFixed(2)}ms)`);
+
+            // Verify all drivers have valid ranks
+            const allHaveRanks = standings.every(s => s.rank >= 1 && s.rank <= 25);
+            assert(allHaveRanks, 'All 25 drivers have valid ranks');
+
+            // Calculate position status for performance test
+            const statusStart = performance.now();
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            const statusEnd = performance.now();
+            assert(statusEnd - statusStart < 50, `Position status under 50ms (took ${(statusEnd - statusStart).toFixed(2)}ms)`);
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 8: ALL DNF RACE
+            // ==========================================
+            html += '<h2>8. All DNF Race (Edge Case)</h2><div class="test-group">';
+
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: 1 },   // 25
+                        { position: null }, // DNF - 0
+                        { position: null }  // DNF - 0
+                    ], true),
+                    createCompetitor('Bob', [
+                        { position: null }, // DNF - 0
+                        { position: null }, // DNF - 0
+                        { position: null }  // DNF - 0
+                    ])
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings[0].totalPoints, 25, 'Alice has 25 points (1 race finish)');
+            assertEqual(standings[1].totalPoints, 0, 'Bob has 0 points (all DNF)');
+            assertEqual(standings[0].name, 'Alice', 'Alice ranked first');
+            assertEqual(standings[1].name, 'Bob', 'Bob ranked last');
+
+            // All DNF scenario - everyone has 0 points
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: null },
+                        { position: null },
+                        { position: null }
+                    ], true),
+                    createCompetitor('Bob', [
+                        { position: null },
+                        { position: null },
+                        { position: null }
+                    ])
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings[0].totalPoints, 0, 'All DNF: First place has 0 points');
+            assertEqual(standings[1].totalPoints, 0, 'All DNF: Second place has 0 points');
+            // Should be alphabetical since tied
+            assertEqual(standings[0].name, 'Alice', 'All DNF: Alphabetical tiebreaker - Alice first');
+            assertEqual(standings[1].name, 'Bob', 'All DNF: Alphabetical tiebreaker - Bob second');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 9: POSITION STATUS TRANSITIONS
+            // ==========================================
+            html += '<h2>9. Position Status Transitions</h2><div class="test-group">';
+
+            // Start of championship - everything achievable
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 5,
+                    countBest: 5
+                },
+                competitors: [
+                    createCompetitor('Alice', [
+                        { position: null },
+                        { position: null },
+                        { position: null },
+                        { position: null },
+                        { position: null }
+                    ], true),
+                    createCompetitor('Bob', [
+                        { position: null },
+                        { position: null },
+                        { position: null },
+                        { position: null },
+                        { position: null }
+                    ])
+                ]
+            });
+
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            // Both have max 125 points (5 wins), so it's achievable
+            assertEqual(status.status, 'ON_TRACK', 'Start of championship: P1 is ON_TRACK (tied at 0)');
+
+            // After first race - leader takes P1
+            testState.competitors[0].results[0].position = 1;
+            testState.competitors[1].results[0].position = 2;
+
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            assertEqual(status.status, 'ON_TRACK', 'After R1: Leader is ON_TRACK');
+
+            status = calculatePositionStatus(testState.competitors[1], 1);
+            assertEqual(status.status, 'ACHIEVABLE', 'After R1: Challenger position is ACHIEVABLE');
+
+            // Halfway through - bigger gap
+            testState.competitors[0].results[1].position = 1;
+            testState.competitors[0].results[2].position = 1;
+            testState.competitors[1].results[1].position = 2;
+            testState.competitors[1].results[2].position = 2;
+
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            assertEqual(status.status, 'ON_TRACK', 'Halfway: Leader still ON_TRACK (races remain)');
+
+            // Calculate if challenger can still catch up
+            // Alice: 75 points (3 wins), can reach 125
+            // Bob: 54 points, can reach 104
+            // Alice min: 75, Bob max: 104 > Alice min... so Bob can still catch
+            status = calculatePositionStatus(testState.competitors[1], 1);
+            assertEqual(status.status, 'ACHIEVABLE', 'Halfway: Challenger can still achieve P1');
+
+            // Final race - championship decided
+            testState.competitors[0].results[3].position = 1;
+            testState.competitors[0].results[4].position = 1;
+            testState.competitors[1].results[3].position = 2;
+            testState.competitors[1].results[4].position = 2;
+
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            assertEqual(status.status, 'GUARANTEED', 'Championship over: Leader has GUARANTEED P1');
+            assertEqual(status.remainingRaces, 0, 'No races remaining');
+
+            status = calculatePositionStatus(testState.competitors[1], 1);
+            assertEqual(status.status, 'NOT_POSSIBLE', 'Championship over: Challenger NOT_POSSIBLE');
+
+            html += '</div>';
+
+            // ==========================================
+            // TEST 10: EDGE CASES AND BOUNDARY CONDITIONS
+            // ==========================================
+            html += '<h2>10. Edge Cases and Boundary Conditions</h2><div class="test-group">';
+
+            // Minimum drivers (2)
+            resetTestState({
+                championship: {
+                    scoring: [25, 18],
+                    totalRounds: 2,
+                    countBest: 2
+                },
+                competitors: [
+                    createCompetitor('Alice', [{ position: 1 }, { position: 2 }], true),
+                    createCompetitor('Bob', [{ position: 2 }, { position: 1 }])
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings.length, 2, 'Minimum 2 drivers works correctly');
+            assertEqual(standings[0].totalPoints, 43, 'Tied points: 43');
+            assertEqual(standings[1].totalPoints, 43, 'Tied points: 43');
+            // Tiebreaker: same wins (1 each), same P2s (1 each) -> alphabetical
+            assertEqual(standings[0].name, 'Alice', 'Tied: alphabetical tiebreaker');
+
+            // Maximum rounds (50)
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15, 12, 10],
+                    totalRounds: 50,
+                    countBest: 50
+                },
+                competitors: [
+                    createCompetitor('Marathoner', Array(50).fill({ position: 1 }), true)
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings[0].totalPoints, 1250, '50 races at P1 = 1250 points');
+
+            // Drop rounds edge: count more than available
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 5  // More than total rounds
+                },
+                competitors: [
+                    createCompetitor('Test', [
+                        { position: 1 },
+                        { position: 2 },
+                        { position: 3 }
+                    ], true)
+                ]
+            });
+
+            standings = calculateStandings();
+            // Should only count available races (3)
+            assertEqual(standings[0].totalPoints, 58, 'Count best > total: uses all available races (25+18+15=58)');
+
+            // Single race championship
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 1,
+                    countBest: 1
+                },
+                competitors: [
+                    createCompetitor('Winner', [{ position: 1 }], true),
+                    createCompetitor('Second', [{ position: 2 }])
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings[0].name, 'Winner', 'Single race: winner determined');
+            assertEqual(standings[0].totalPoints, 25, 'Single race: 25 points');
+
+            status = calculatePositionStatus(testState.competitors[0], 1);
+            assertEqual(status.status, 'GUARANTEED', 'Single race completed: GUARANTEED');
+
+            // Fastest lap toggled mid-championship
+            resetTestState({
+                championship: {
+                    scoring: [25, 18, 15],
+                    totalRounds: 3,
+                    countBest: 3,
+                    flEnabled: true,
+                    flBonus: 1
+                },
+                competitors: [
+                    createCompetitor('Speedy', [
+                        { position: 1, fastestLap: true },   // 26
+                        { position: 1, fastestLap: false },  // 25
+                        { position: 1, fastestLap: true }    // 26
+                    ], true)
+                ]
+            });
+
+            standings = calculateStandings();
+            assertEqual(standings[0].totalPoints, 77, 'FL bonus: 26+25+26 = 77 points');
+
+            // Disable FL mid-championship
+            testState.championship.flEnabled = false;
+            standings = calculateStandings();
+            assertEqual(standings[0].totalPoints, 75, 'FL disabled: 25+25+25 = 75 points (FL ignored)');
+
+            html += '</div>';
+
+            // ==========================================
+            // RENDER TEST RESULTS
+            // ==========================================
+
+            // Add test results to each section
+            let currentSection = '';
+            let sectionHtml = '';
+
+            testResults.tests.forEach((test, index) => {
+                const className = test.passed ? 'pass' : 'fail';
+                const status = test.passed ? 'PASS' : 'FAIL';
+                let testHtml = `<div class="test-result ${className}">
+                    <span>${test.name}</span>
+                    <span class="status">${status}</span>
+                </div>`;
+
+                if (!test.passed && test.details) {
+                    testHtml += `<div class="error-details">${test.details}</div>`;
+                }
+
+                html = html.replace('</div>', testHtml + '</div>');
+            });
+
+            // Add summary
+            html += `<div class="summary">
+                <h2>Test Summary</h2>
+                <p class="summary-pass">Passed: ${testResults.passed}</p>
+                <p class="summary-fail">Failed: ${testResults.failed}</p>
+                <p>Total: ${testResults.passed + testResults.failed}</p>
+            </div>`;
+
+            // Bug reports section
+            if (testResults.failed > 0) {
+                html += '<h2>Bug Reports</h2>';
+                testResults.tests.filter(t => !t.passed).forEach(test => {
+                    html += `<div class="bug-report">
+                        <h3>Bug: ${test.name}</h3>
+                        <p><strong>Details:</strong> ${test.details || 'See test for details'}</p>
+                        <p><strong>Status:</strong> Needs investigation</p>
+                    </div>`;
+                });
+            }
+
+            output.innerHTML = html;
+        }
+
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', runTests);
+    </script>
+</body>
+</html>

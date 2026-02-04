@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RaceStand - Championship Calculator</title>
+    <style>
+        /* CSS Variables (Design Tokens) */
+        :root {
+            /* Colors */
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1f2937;
+            --bg-card: rgba(255, 255, 255, 0.03);
+
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+
+            --accent: #eab308;
+            --accent-dim: rgba(234, 179, 8, 0.15);
+
+            --success: #22c55e;
+            --success-dim: rgba(34, 197, 94, 0.15);
+
+            --warning: #f59e0b;
+            --warning-dim: rgba(245, 158, 11, 0.15);
+
+            --danger: #ef4444;
+            --danger-dim: rgba(239, 68, 68, 0.15);
+
+            --border: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(255, 255, 255, 0.12);
+
+            /* Typography */
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+            --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+
+            /* Transitions */
+            --transition-fast: 150ms ease;
+            --transition-normal: 250ms ease;
+
+            /* Shadows */
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Base Styles */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-mono);
+            background: linear-gradient(165deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        #app {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-lg);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Header */
+        #header {
+            margin-bottom: var(--space-lg);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+        }
+
+        .logo {
+            font-family: var(--font-sans);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .championship-input {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-primary);
+            min-width: 250px;
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .championship-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .championship-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Header Actions */
+        .header-actions {
+            display: flex;
+            gap: var(--space-sm);
+        }
+
+        .header-actions .btn {
+            padding: var(--space-xs) var(--space-md);
+            font-size: 0.75rem;
+        }
+
+        .tournament-controls {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        /* Tournament Selector */
+        .tournament-selector {
+            position: relative;
+        }
+
+        .no-tournaments {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .tournament-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tournament-item {
+            display: flex;
+            align-items: stretch;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: border-color var(--transition-fast);
+        }
+
+        .tournament-item:hover {
+            border-color: var(--accent);
+        }
+
+        .tournament-item.active {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .tournament-load-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 4px 10px;
+            background: none;
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .tournament-load-btn:hover {
+            background: var(--bg-secondary);
+        }
+
+        .tournament-name {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .tournament-date {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        .tournament-delete-btn {
+            padding: 0 8px;
+            background: none;
+            border: none;
+            border-left: 1px solid var(--border);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all var(--transition-fast);
+        }
+
+        .tournament-delete-btn:hover {
+            background: var(--danger-dim);
+            color: var(--danger);
+        }
+
+        /* Save indicator */
+        .save-indicator {
+            font-size: 0.75rem;
+            color: var(--success);
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .save-indicator.visible {
+            opacity: 1;
+        }
+
+        /* Panel */
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+            transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+        }
+
+        .panel:hover {
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .panel-title {
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            margin-bottom: var(--space-md);
+        }
+
+        /* Config Panel Toggle (Mobile) */
+        .config-toggle {
+            display: none;
+            width: 100%;
+            justify-content: space-between;
+            align-items: center;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            margin-bottom: var(--space-md);
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: color var(--transition-fast);
+        }
+
+        .config-toggle:hover {
+            color: var(--text-secondary);
+        }
+
+        .config-toggle-icon {
+            transition: transform var(--transition-fast);
+            font-size: 0.875rem;
+        }
+
+        .config-toggle-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .config-content {
+            transition: max-height var(--transition-normal) ease-out, opacity var(--transition-normal) ease-out;
+            overflow: hidden;
+        }
+
+        .config-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        /* Config Grid */
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-lg);
+        }
+
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .config-item label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .config-input {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-primary);
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .config-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .config-input:hover:not(:focus) {
+            border-color: var(--border-hover);
+        }
+
+        .config-input-small {
+            width: 80px;
+        }
+
+        .help-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Inline Group */
+        .inline-group {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .of-text, .bonus-text {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* Toggle */
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            cursor: pointer;
+        }
+
+        .toggle-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+            transition: transform var(--transition-fast);
+        }
+
+        .toggle-label input[type="checkbox"]:hover {
+            transform: scale(1.1);
+        }
+
+        .toggle-text {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        #fl-bonus-wrapper {
+            margin-top: var(--space-sm);
+        }
+
+        /* Grid Header */
+        .grid-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-md);
+        }
+
+        /* Buttons */
+        .btn {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            min-height: 44px; /* Touch-friendly tap target */
+        }
+
+        .btn-primary {
+            background: var(--accent-dim);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-primary:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--border-hover);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-secondary:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
+        }
+
+        /* Grid Container - Horizontal Scroll Wrapper */
+        .grid-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-hover) transparent;
+            position: relative;
+        }
+
+        .grid-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .grid-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .grid-container::-webkit-scrollbar-thumb {
+            background: var(--border-hover);
+            border-radius: 4px;
+        }
+
+        .grid-container::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Scroll fade indicators */
+        .grid-wrapper {
+            position: relative;
+        }
+
+        .grid-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 8px; /* Account for scrollbar */
+            width: 40px;
+            background: linear-gradient(to right, transparent, var(--bg-secondary));
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .grid-wrapper.has-scroll::after {
+            opacity: 1;
+        }
+
+        /* Results Table */
+        #results-grid {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 500px;
+        }
+
+        #results-grid th,
+        #results-grid td {
+            padding: var(--space-sm) var(--space-md);
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        #results-grid th {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            background: var(--bg-secondary);
+            position: sticky;
+            top: 0;
+        }
+
+        #results-grid td {
+            font-size: 0.875rem;
+        }
+
+        /* Sticky first column (Driver name) */
+        #results-grid th:first-child,
+        #results-grid td:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background: var(--bg-card);
+            z-index: 1;
+            /* Add subtle shadow to indicate sticky column */
+            box-shadow: 2px 0 4px rgba(0, 0, 0, 0.2);
+        }
+
+        #results-grid th:first-child {
+            background: var(--bg-secondary);
+            z-index: 2;
+        }
+
+        /* Table row hover */
+        #results-grid tbody tr {
+            transition: background var(--transition-fast);
+        }
+
+        #results-grid tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        #results-grid tbody tr:hover td:first-child {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        /* Empty state */
+        .empty-grid-message {
+            text-align: center;
+            padding: var(--space-xl);
+            color: var(--text-muted);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: var(--space-md);
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            min-width: 300px;
+            max-width: 90%;
+            width: 100%;
+            max-width: 400px;
+            animation: modalSlideIn 0.2s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-content h3 {
+            margin-bottom: var(--space-md);
+            color: var(--text-primary);
+        }
+
+        .modal-input {
+            width: 100%;
+            margin-bottom: var(--space-md);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-primary);
+            min-height: 44px; /* Touch-friendly */
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: flex-end;
+        }
+
+        /* Driver Cell in Grid */
+        .driver-cell {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            min-width: 150px;
+        }
+
+        .driver-name {
+            flex: 1;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: var(--radius-sm);
+            transition: background var(--transition-fast);
+        }
+
+        .driver-name:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .driver-name-input {
+            font-family: var(--font-mono);
+            font-size: inherit;
+            font-weight: 500;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius-sm);
+            padding: 2px 4px;
+            color: var(--text-primary);
+            width: 100%;
+            min-width: 80px;
+        }
+
+        .driver-name-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px var(--accent-dim);
+        }
+
+        .delete-driver {
+            color: var(--text-muted);
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+            font-size: 1.2rem;
+            line-height: 1;
+            padding: var(--space-xs);
+        }
+
+        #results-grid tbody tr:hover .delete-driver {
+            opacity: 1;
+        }
+
+        .delete-driver:hover {
+            color: var(--danger);
+            transform: scale(1.2);
+        }
+
+        /* My Driver Marker */
+        .my-driver-marker {
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform var(--transition-fast), color var(--transition-fast);
+            padding: var(--space-xs);
+        }
+
+        .my-driver-marker:hover {
+            transform: scale(1.3);
+        }
+
+        .my-driver-marker.active {
+            color: var(--accent);
+            animation: starPulse 0.3s ease-out;
+        }
+
+        @keyframes starPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+
+        .my-driver-marker.inactive {
+            color: var(--text-muted);
+        }
+
+        .my-driver-marker.inactive:hover {
+            color: var(--accent);
+        }
+
+        /* My Driver Row Highlight */
+        tr.my-driver-row {
+            background: var(--accent-dim) !important;
+        }
+
+        tr.my-driver-row td:first-child {
+            background: var(--accent-dim) !important;
+        }
+
+        /* Result Cells */
+        .result-cell {
+            cursor: pointer;
+            min-width: 48px;
+            transition: background var(--transition-fast), transform var(--transition-fast);
+            position: relative;
+        }
+
+        .result-cell:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .result-cell.future {
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 4px,
+                rgba(255, 255, 255, 0.02) 4px,
+                rgba(255, 255, 255, 0.02) 8px
+            );
+        }
+
+        .result-cell.future:hover {
+            background: repeating-linear-gradient(
+                45deg,
+                var(--bg-tertiary),
+                var(--bg-tertiary) 4px,
+                rgba(255, 255, 255, 0.05) 4px,
+                rgba(255, 255, 255, 0.05) 8px
+            );
+        }
+
+        .result-cell.editing {
+            background: var(--accent-dim);
+            padding: 0;
+        }
+
+        .result-input {
+            width: 100%;
+            height: 100%;
+            min-height: 32px;
+            text-align: center;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: inherit;
+            font-family: inherit;
+            padding: var(--space-sm);
+        }
+
+        .result-input:focus {
+            outline: none;
+        }
+
+        /* Tooltip for Result Cells (CSS-based) */
+        .result-cell[data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-4px);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity var(--transition-fast), visibility var(--transition-fast), transform var(--transition-fast);
+            z-index: 10;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            pointer-events: none;
+        }
+
+        .result-cell[data-tooltip]::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            border: 6px solid transparent;
+            border-top-color: var(--bg-tertiary);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity var(--transition-fast), visibility var(--transition-fast);
+            z-index: 11;
+            pointer-events: none;
+        }
+
+        .result-cell[data-tooltip]:hover::after,
+        .result-cell[data-tooltip]:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .result-cell[data-tooltip]:hover::after {
+            transform: translateX(-50%) translateY(-8px);
+        }
+
+        /* FL Cell */
+        .fl-cell {
+            padding: var(--space-xs) !important;
+        }
+
+        .fl-header {
+            font-size: 0.65rem !important;
+            color: var(--text-muted) !important;
+        }
+
+        /* FL Checkbox */
+        .fl-checkbox {
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent);
+            transition: transform var(--transition-fast);
+        }
+
+        .fl-checkbox:hover {
+            transform: scale(1.2);
+        }
+
+        /* Points/Rank Columns */
+        .total-cell {
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .rank-cell {
+            font-weight: 600;
+        }
+
+        .rank-1 { color: var(--accent); }
+        .rank-2 { color: var(--text-secondary); }
+        .rank-3 { color: #cd7f32; } /* Bronze */
+
+        /* Status Panel */
+        .status-content {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+        }
+
+        /* Target Selector */
+        .target-selector {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .target-selector label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .target-select {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-primary);
+            cursor: pointer;
+            min-height: 44px; /* Touch-friendly */
+            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+        }
+
+        .target-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        .target-select:hover {
+            border-color: var(--border-hover);
+        }
+
+        /* Status Card */
+        .status-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            transition: box-shadow var(--transition-normal);
+        }
+
+        .status-card:hover {
+            box-shadow: var(--shadow-sm);
+        }
+
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-sm);
+        }
+
+        .driver-name-display {
+            font-weight: 600;
+            font-size: 1.125rem;
+        }
+
+        .points-badge {
+            background: var(--accent-dim);
+            color: var(--accent);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .status-rank {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-sm);
+        }
+
+        .status-message {
+            font-size: 1rem;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .status-guaranteed {
+            color: var(--success);
+        }
+
+        .status-secured {
+            color: var(--success);
+        }
+
+        .status-on-track {
+            color: var(--accent);
+        }
+
+        .status-achievable {
+            color: var(--text-secondary);
+        }
+
+        .status-not-possible {
+            color: var(--danger);
+        }
+
+        /* Status Details */
+        .status-details {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-xs);
+        }
+
+        /* Rivals Section */
+        .rivals-section {
+            margin-top: var(--space-md);
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border);
+        }
+
+        .rivals-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: var(--space-sm);
+        }
+
+        .rival-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .rival-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+            padding: var(--space-xs) var(--space-sm);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-sm);
+            transition: background var(--transition-fast);
+        }
+
+        .rival-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .rival-name {
+            color: var(--text-secondary);
+        }
+
+        .rival-stats {
+            display: flex;
+            gap: var(--space-sm);
+            font-size: 0.75rem;
+        }
+
+        .rival-current {
+            color: var(--text-muted);
+        }
+
+        .rival-max {
+            color: var(--accent);
+        }
+
+        .rival-max-with-breakdown {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+
+        .rival-breakdown-text {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .rival-threat {
+            color: var(--danger);
+        }
+
+        .rival-safe {
+            color: var(--success);
+        }
+
+        .rival-indicator {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            font-weight: 500;
+            transition: transform var(--transition-fast);
+        }
+
+        .rival-indicator:hover {
+            transform: scale(1.05);
+        }
+
+        .rival-indicator.threat {
+            background: var(--danger-dim);
+            color: var(--danger);
+        }
+
+        .rival-indicator.safe {
+            background: var(--success-dim);
+            color: var(--success);
+        }
+
+        /* Rival breakdown in scenario table */
+        .rival-max-cell {
+            position: relative;
+        }
+
+        .rival-max-value {
+            font-weight: 600;
+        }
+
+        .rival-inline-list {
+            margin-top: 6px;
+        }
+
+        .rival-inline-item {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 4px 0;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+        }
+
+        .rival-inline-item:first-child {
+            border-top: none;
+        }
+
+        .rival-inline-name {
+            color: var(--text);
+            font-weight: 500;
+        }
+
+        .rival-inline-pts {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .rival-inline-detail {
+            color: var(--text-muted);
+            font-family: monospace;
+            font-size: 0.7rem;
+            flex-basis: 100%;
+        }
+
+        /* What's Needed Section */
+        .whats-needed-section {
+            margin-top: var(--space-md);
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border);
+        }
+
+        .whats-needed-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: var(--space-sm);
+        }
+
+        .whats-needed-summary {
+            font-size: 0.9375rem;
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin-bottom: var(--space-sm);
+        }
+
+        .whats-needed-summary strong {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .whats-needed-summary .guaranteed-text {
+            color: var(--success);
+        }
+
+        .whats-needed-summary .impossible-text {
+            color: var(--danger);
+        }
+
+        .whats-needed-contention {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: var(--space-xs);
+        }
+
+        .whats-needed-contention strong {
+            color: var(--accent);
+        }
+
+        /* Scenario Table */
+        .scenario-table-container {
+            margin-top: var(--space-md);
+        }
+
+        .scenario-toggle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            margin-bottom: var(--space-sm);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            transition: color var(--transition-fast);
+            padding: var(--space-xs);
+        }
+
+        .scenario-toggle:hover {
+            color: var(--text-secondary);
+        }
+
+        .scenario-toggle-icon {
+            transition: transform var(--transition-fast);
+        }
+
+        .scenario-toggle-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .scenario-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8125rem;
+        }
+
+        .scenario-table th,
+        .scenario-table td {
+            padding: var(--space-sm) var(--space-md);
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .scenario-table th {
+            font-size: 0.6875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .scenario-table td {
+            color: var(--text-secondary);
+        }
+
+        .scenario-table td:first-child {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .scenario-table tbody tr {
+            transition: background var(--transition-fast);
+        }
+
+        .scenario-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Scenario Status Badges */
+        .scenario-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .scenario-safe {
+            background: var(--success-dim);
+            color: var(--success);
+        }
+
+        .scenario-risk {
+            background: var(--warning-dim);
+            color: var(--warning);
+        }
+
+        .scenario-fail {
+            background: var(--danger-dim);
+            color: var(--danger);
+        }
+
+        /* Scenario Assumptions & Legend */
+        .scenario-assumptions {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: var(--space-sm);
+            padding: var(--space-sm);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-sm);
+            border-left: 2px solid var(--accent);
+        }
+
+        .scenario-assumptions strong {
+            color: var(--text-secondary);
+        }
+
+        .scenario-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-md);
+            margin-top: var(--space-sm);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+
+        .scenario-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: var(--radius-sm);
+            font-size: 0.625rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* ==========================================
+           TABLET RESPONSIVE (768px - 1024px)
+           ========================================== */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            #app {
+                padding: var(--space-md);
+            }
+
+            .panel {
+                padding: var(--space-md);
+            }
+
+            /* Slightly smaller font sizes for tablet */
+            .logo {
+                font-size: 1.375rem;
+            }
+
+            #results-grid th,
+            #results-grid td {
+                padding: var(--space-xs) var(--space-sm);
+                font-size: 0.8125rem;
+            }
+
+            #results-grid th {
+                font-size: 0.6875rem;
+            }
+
+            .driver-cell {
+                min-width: 130px;
+            }
+
+            .result-cell {
+                min-width: 40px;
+            }
+
+            /* Status panel adjustments */
+            .status-message {
+                font-size: 0.9375rem;
+            }
+
+            .driver-name-display {
+                font-size: 1rem;
+            }
+
+            /* Config grid - 2 columns on tablet */
+            .config-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            /* Scenario table */
+            .scenario-table {
+                font-size: 0.75rem;
+            }
+
+            .scenario-table th,
+            .scenario-table td {
+                padding: var(--space-xs) var(--space-sm);
+            }
+        }
+
+        /* ==========================================
+           MOBILE RESPONSIVE (<768px)
+           ========================================== */
+        @media (max-width: 768px) {
+            #app {
+                padding: var(--space-md);
+            }
+
+            .panel {
+                padding: var(--space-md);
+            }
+
+            /* Header stacks vertically */
+            .header-content {
+                flex-direction: column;
+                align-items: stretch;
+                gap: var(--space-sm);
+            }
+
+            .header-actions {
+                justify-content: flex-end;
+            }
+
+            .championship-input {
+                width: 100%;
+                min-width: unset;
+            }
+
+            .tournament-controls {
+                flex-wrap: wrap;
+                width: 100%;
+            }
+
+            .tournament-selector {
+                width: 100%;
+                margin-top: var(--space-xs);
+            }
+
+            .tournament-list {
+                flex-direction: column;
+            }
+
+            .tournament-item {
+                width: 100%;
+            }
+
+            .tournament-load-btn {
+                flex: 1;
+            }
+
+            /* Show config panel toggle on mobile */
+            .config-toggle {
+                display: flex;
+            }
+
+            .panel-title.desktop-only {
+                display: none;
+            }
+
+            /* Config grid becomes single column */
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Grid table adjustments */
+            #results-grid th,
+            #results-grid td {
+                padding: var(--space-xs) var(--space-sm);
+                font-size: 0.75rem;
+            }
+
+            #results-grid th {
+                font-size: 0.625rem;
+            }
+
+            .driver-cell {
+                min-width: 120px;
+            }
+
+            .driver-name {
+                font-size: 0.75rem;
+            }
+
+            .result-cell {
+                min-width: 36px;
+            }
+
+            /* Ensure touch targets are adequate */
+            .my-driver-marker,
+            .delete-driver {
+                min-width: 44px;
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Always show delete button on mobile (no hover) */
+            #results-grid tbody tr .delete-driver {
+                opacity: 0.5;
+            }
+
+            /* Modal is full-width on mobile */
+            .modal-content {
+                width: calc(100% - var(--space-lg));
+                max-width: none;
+            }
+
+            /* Status panel adjustments */
+            .status-message {
+                font-size: 0.875rem;
+            }
+
+            .driver-name-display {
+                font-size: 1rem;
+            }
+
+            .points-badge {
+                font-size: 0.75rem;
+            }
+
+            /* Rival items stack better */
+            .rival-item {
+                flex-wrap: wrap;
+                gap: var(--space-xs);
+            }
+
+            .rival-stats {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            /* Scenario table */
+            .scenario-table {
+                font-size: 0.75rem;
+            }
+
+            .scenario-table th,
+            .scenario-table td {
+                padding: var(--space-xs) var(--space-sm);
+            }
+
+            /* Target selector stacks */
+            .target-selector {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-xs);
+            }
+
+            .target-select {
+                width: 100%;
+            }
+
+            /* Tooltips position at top on mobile to avoid overflow */
+            .result-cell[data-tooltip]::after {
+                bottom: auto;
+                top: 100%;
+                transform: translateX(-50%) translateY(4px);
+            }
+
+            .result-cell[data-tooltip]:hover::after {
+                transform: translateX(-50%) translateY(8px);
+            }
+
+            .result-cell[data-tooltip]::before {
+                bottom: auto;
+                top: 100%;
+                transform: translateX(-50%) translateY(-4px);
+                border-top-color: transparent;
+                border-bottom-color: var(--bg-tertiary);
+            }
+        }
+
+        /* ==========================================
+           EXTRA SMALL MOBILE (<480px)
+           ========================================== */
+        @media (max-width: 480px) {
+            #app {
+                padding: var(--space-sm);
+            }
+
+            .panel {
+                padding: var(--space-sm);
+                border-radius: var(--radius-md);
+            }
+
+            .logo {
+                font-size: 1.25rem;
+            }
+
+            .grid-header {
+                flex-direction: column;
+                gap: var(--space-sm);
+                align-items: stretch;
+            }
+
+            .grid-header .btn {
+                width: 100%;
+            }
+
+            /* Even smaller text for very small screens */
+            #results-grid th,
+            #results-grid td {
+                font-size: 0.6875rem;
+            }
+
+            .driver-cell {
+                min-width: 100px;
+            }
+
+            .result-cell {
+                min-width: 32px;
+            }
+        }
+
+        /* ==========================================
+           ACCESSIBILITY - Focus States
+           ========================================== */
+        /* Ensure visible focus states for keyboard navigation */
+        a:focus,
+        button:focus,
+        input:focus,
+        select:focus,
+        [tabindex]:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* Remove default outline since we have custom focus styles */
+        a:focus:not(:focus-visible),
+        button:focus:not(:focus-visible),
+        input:focus:not(:focus-visible),
+        select:focus:not(:focus-visible),
+        [tabindex]:focus:not(:focus-visible) {
+            outline: none;
+        }
+
+        /* Show focus ring only for keyboard navigation */
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        [tabindex]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* ==========================================
+           PRINT STYLES
+           ========================================== */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+
+            .panel {
+                border: 1px solid #ccc;
+                box-shadow: none;
+            }
+
+            .btn,
+            .modal,
+            .config-toggle {
+                display: none !important;
+            }
+        }
+
+        /* ==========================================
+           BROWSER COMPATIBILITY NOTES
+           ==========================================
+
+           CSS Features Used:
+           - CSS Custom Properties (CSS Variables): Supported in all modern browsers
+           - CSS Grid: Supported in all modern browsers
+           - Flexbox: Supported in all modern browsers
+           - position: sticky: Supported in all modern browsers
+           - scroll-behavior: smooth: Supported in most browsers (Safari may need prefix)
+           - -webkit-overflow-scrolling: touch: iOS Safari specific for smooth scrolling
+           - accent-color: Modern browsers only (Chrome 93+, Firefox 92+, Safari 15.4+)
+             Fallback: checkboxes will use browser default styling
+           - :focus-visible: Modern browsers (Chrome 86+, Firefox 85+, Safari 15.4+)
+             Fallback: standard :focus will apply
+           - gap in flexbox: Chrome 84+, Firefox 63+, Safari 14.1+
+             Fallback: margins can be used if needed
+           - inset property: Modern browsers, shorthand for top/right/bottom/left
+
+           Vendor Prefixes Used:
+           - -webkit-overflow-scrolling: touch (iOS Safari momentum scrolling)
+           - Scrollbar styling uses both standard and webkit prefixes
+
+           Tested Behavior Assumptions:
+           - Chrome 90+: Full support for all features
+           - Firefox 90+: Full support for all features
+           - Safari 15+: Full support (minor differences in scrollbar styling)
+           - Safari 14: Works with fallback for accent-color and focus-visible
+           - Edge (Chromium): Same as Chrome
+           - Mobile Safari: Smooth touch scrolling with -webkit-overflow-scrolling
+           - Mobile Chrome: Full support
+
+           Known Limitations:
+           - IE11: Not supported (CSS variables, grid layout)
+           - Safari < 14: May have issues with gap in flexbox
+           - Very old mobile browsers: May not support sticky positioning
+
+           ========================================== */
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header id="header">
+            <div class="header-content">
+                <h1 class="logo">RaceStand</h1>
+                <div class="tournament-controls">
+                    <input type="text"
+                           id="championship-name"
+                           placeholder="Tournament Name"
+                           class="championship-input">
+                    <div class="header-actions">
+                        <button id="save-btn" class="btn btn-primary" title="Save tournament">Save</button>
+                        <button id="new-btn" class="btn btn-secondary" title="New tournament">New</button>
+                    </div>
+                </div>
+                <div id="tournament-selector" class="tournament-selector"></div>
+            </div>
+        </header>
+
+        <section id="config-panel" class="panel">
+            <button id="config-toggle" class="config-toggle" aria-expanded="true" aria-controls="config-content">
+                <span>Championship Settings</span>
+                <span id="config-toggle-icon" class="config-toggle-icon">&#9660;</span>
+            </button>
+            <h2 class="panel-title desktop-only">Championship Settings</h2>
+
+            <div id="config-content" class="config-content">
+                <div class="config-grid">
+                    <!-- Scoring Table -->
+                    <div class="config-item">
+                        <label for="scoring-input">Points per Position</label>
+                        <input type="text"
+                               id="scoring-input"
+                               placeholder="25,18,15,12,10,8,6,4,2,1"
+                               value="25,18,15,12,10,8,6,4,2,1"
+                               class="config-input">
+                        <small class="help-text">Comma-separated (P1, P2, P3...)</small>
+                    </div>
+
+                    <!-- Total Rounds -->
+                    <div class="config-item">
+                        <label for="total-rounds">Total Rounds</label>
+                        <input type="number"
+                               id="total-rounds"
+                               min="1"
+                               max="50"
+                               value="5"
+                               class="config-input config-input-small">
+                    </div>
+
+                    <!-- Drop Rounds -->
+                    <div class="config-item">
+                        <label for="count-best">Count Best</label>
+                        <div class="inline-group">
+                            <input type="number"
+                                   id="count-best"
+                                   min="1"
+                                   max="50"
+                                   value="5"
+                                   class="config-input config-input-small">
+                            <span class="of-text">of <span id="total-display">5</span></span>
+                        </div>
+                    </div>
+
+                    <!-- Fastest Lap -->
+                    <div class="config-item">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="fl-enabled">
+                            <span class="toggle-text">Fastest Lap Bonus</span>
+                        </label>
+                        <div id="fl-bonus-wrapper" class="hidden">
+                            <input type="number"
+                                   id="fl-bonus"
+                                   min="1"
+                                   max="10"
+                                   value="1"
+                                   class="config-input config-input-small">
+                            <span class="bonus-text">point(s)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="grid-panel" class="panel">
+            <div class="grid-header">
+                <h2 class="panel-title">Results</h2>
+                <button id="add-driver-btn" class="btn btn-primary">+ Add Driver</button>
+            </div>
+
+            <div class="grid-wrapper" id="grid-wrapper">
+                <div class="grid-container" id="grid-container">
+                    <table id="results-grid">
+                        <thead id="grid-head">
+                            <!-- Generated by JavaScript -->
+                        </thead>
+                        <tbody id="grid-body">
+                            <!-- Generated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="status-panel" class="panel">
+            <h2 class="panel-title">Championship Status</h2>
+
+            <div class="status-content">
+                <!-- Target Position Selector -->
+                <div class="target-selector">
+                    <label for="target-position">Target Position:</label>
+                    <select id="target-position" class="target-select">
+                        <!-- Options generated by JavaScript -->
+                    </select>
+                </div>
+
+                <!-- My Driver Status Card -->
+                <div id="my-driver-status" class="status-card">
+                    <div class="status-header">
+                        <span id="my-driver-name" class="driver-name-display">-</span>
+                        <span id="my-driver-points" class="points-badge">0 pts</span>
+                    </div>
+                    <div class="status-rank">
+                        Currently: <span id="current-rank">-</span>
+                    </div>
+                    <div id="status-message" class="status-message">
+                        Add competitors to begin
+                    </div>
+                    <div id="status-details" class="status-details"></div>
+
+                    <!-- Rivals competing for same position -->
+                    <div id="rivals-section" class="rivals-section hidden">
+                        <div class="rivals-title">Competing for this position</div>
+                        <div id="rival-list" class="rival-list">
+                            <!-- Generated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- What's Needed Section -->
+                    <div id="whats-needed-section" class="whats-needed-section hidden">
+                        <div class="whats-needed-title">What You Need</div>
+                        <div id="whats-needed-summary" class="whats-needed-summary"></div>
+                        <div id="scenario-table-container" class="scenario-table-container hidden">
+                            <div id="scenario-toggle" class="scenario-toggle">
+                                <span id="scenario-toggle-icon" class="scenario-toggle-icon">&#9654;</span>
+                                <span>View all scenarios</span>
+                            </div>
+                            <div id="scenario-table-wrapper" class="hidden">
+                                <div class="scenario-assumptions">
+                                    <strong>Assumptions (worst case):</strong> Your points = without FL bonus | Rival max = with FL in all remaining races | Drop rounds applied
+                                </div>
+                                <table id="scenario-table" class="scenario-table">
+                                    <thead>
+                                        <tr>
+                                            <th title="Your finishing positions in remaining races">Your Results</th>
+                                            <th title="Your total points (without FL bonus for you)">Your Points*</th>
+                                            <th title="Rival's maximum possible points (assumes they get P1+FL in all remaining races)">Rival Max**</th>
+                                            <th title="SAFE = guaranteed, RISK = depends on rival results, FAIL = cannot achieve">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="scenario-body"></tbody>
+                                </table>
+                                <div class="scenario-legend">
+                                    <span class="legend-item"><span class="scenario-badge scenario-safe">SAFE</span> = Guaranteed even if rival gets all FLs</span>
+                                    <span class="legend-item"><span class="scenario-badge scenario-risk">RISK</span> = Possible but depends on rival results</span>
+                                    <span class="legend-item"><span class="scenario-badge scenario-fail">FAIL</span> = Cannot achieve target position</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add Driver Modal -->
+        <div id="add-driver-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Add Driver</h3>
+                <input type="text"
+                       id="new-driver-name"
+                       placeholder="Driver name"
+                       class="modal-input">
+                <div class="modal-actions">
+                    <button id="cancel-add-driver" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-add-driver" class="btn btn-primary">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- LZString library for URL import decompression -->
+    <script src="lz-string.min.js"></script>
+    <script src="racestand.js"></script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+/* RaceStand SimGrid Import Button Styles */
+/* Dark theme with gold accent (#1a1a2e, #eab308) */
+
+/* Entrance animation - pulse glow to draw attention */
+@keyframes racestand-pulse {
+  0% {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(234, 179, 8, 0.7);
+  }
+  50% {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 15px rgba(234, 179, 8, 0);
+  }
+  100% {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 0 rgba(234, 179, 8, 0);
+  }
+}
+
+@keyframes racestand-slide-in {
+  0% {
+    transform: translateX(100px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+#racestand-import-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10000;
+  background: #1a1a2e;
+  color: #eab308;
+  border: 2px solid #eab308;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+  animation: racestand-slide-in 0.4s ease-out, racestand-pulse 1.5s ease-out 0.5s 2;
+}
+
+#racestand-import-btn:hover {
+  background: #eab308;
+  color: #1a1a2e;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(234, 179, 8, 0.3);
+}
+
+/* Loading state */
+#racestand-import-btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+  pointer-events: none;
+}
+
+/* Success state */
+#racestand-import-btn.success {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+/* Error state */
+#racestand-import-btn.error {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+/* ========================= */
+/* Error Popup / Toast Styles */
+/* ========================= */
+
+@keyframes racestand-popup-slide-in {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes racestand-popup-slide-out {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+#racestand-error-popup {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 10001;
+  max-width: 360px;
+  background: #1a1a2e;
+  border: 2px solid #dc2626;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(220, 38, 38, 0.2);
+  font-family: 'JetBrains Mono', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+  animation: racestand-popup-slide-in 0.3s ease-out;
+}
+
+#racestand-error-popup.hiding {
+  animation: racestand-popup-slide-out 0.3s ease-in forwards;
+}
+
+#racestand-error-popup .popup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+#racestand-error-popup .popup-icon {
+  width: 24px;
+  height: 24px;
+  background: #dc2626;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#racestand-error-popup .popup-icon::before {
+  content: '!';
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+#racestand-error-popup .popup-title {
+  color: #dc2626;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+
+#racestand-error-popup .popup-message {
+  color: #a1a1aa;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+}
+
+#racestand-error-popup .popup-details {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 12px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+#racestand-error-popup .popup-details ul {
+  margin: 0;
+  padding: 0 0 0 16px;
+  list-style: disc;
+}
+
+#racestand-error-popup .popup-details li {
+  color: #f87171;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+#racestand-error-popup .popup-details li:last-child {
+  margin-bottom: 0;
+}
+
+#racestand-error-popup .popup-close {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  color: #a1a1aa;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+#racestand-error-popup .popup-close:hover {
+  background: #27272a;
+  border-color: #52525b;
+  color: #ffffff;
+}
+
+/* Success Toast */
+#racestand-success-popup {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 10001;
+  max-width: 300px;
+  background: #1a1a2e;
+  border: 2px solid #16a34a;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(22, 163, 74, 0.2);
+  font-family: 'JetBrains Mono', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+  animation: racestand-popup-slide-in 0.3s ease-out;
+}
+
+#racestand-success-popup.hiding {
+  animation: racestand-popup-slide-out 0.3s ease-in forwards;
+}
+
+#racestand-success-popup .popup-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#racestand-success-popup .popup-icon {
+  width: 24px;
+  height: 24px;
+  background: #16a34a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+#racestand-success-popup .popup-icon::before {
+  content: '\2713';
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+#racestand-success-popup .popup-title {
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Loading spinner animation */
+@keyframes racestand-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#racestand-import-btn.loading::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  border: 2px solid #eab308;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: racestand-spin 0.8s linear infinite;
+  vertical-align: middle;
+}
