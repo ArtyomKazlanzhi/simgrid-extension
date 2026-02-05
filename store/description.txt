@@ -1,0 +1,17 @@
+SimGrid to RaceStand Importer
+
+Import championship standings from TheSimGrid.com into RaceStand — the sim-racing championship tracker.
+
+Features:
+• One-click import of championship standings from any TheSimGrid championship page
+• Automatically detects rounds, drivers, and points
+• Opens results directly in RaceStand with data pre-filled
+• Supports multi-class championships
+• Works with both thesimgrid.com and www.thesimgrid.com
+
+How to use:
+1. Navigate to any championship page on TheSimGrid.com
+2. Click the "Import to RaceStand" button that appears on the page
+3. Review the imported data in the RaceStand viewer that opens
+
+No account required. No data leaves your browser.
