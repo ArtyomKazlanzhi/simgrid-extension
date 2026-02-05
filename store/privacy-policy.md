@@ -1,6 +1,6 @@
 # Privacy Policy — SimGrid to RaceStand Importer
 
-**Last updated:** 2025-02-05
+**Last updated:** 2026-02-05
 
 ## Data Collection
 
@@ -22,4 +22,4 @@ This extension does not communicate with any third-party services or APIs.
 ## Contact
 
 If you have questions about this policy, open an issue at:
-https://github.com/AKhilRaghworkedav/simgrid-extension/issues
+https://github.com/ArtyomKazlanzhi/simgrid-extension/issues
