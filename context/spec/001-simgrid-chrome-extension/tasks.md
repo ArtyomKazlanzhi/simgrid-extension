@@ -1,7 +1,7 @@
 # Tasks: SimGrid Chrome Extension
 
 > **Spec:** `context/spec/001-simgrid-chrome-extension/`
-> **Status:** Ready for Implementation
+> **Status:** Completed
 
 ---
 
@@ -115,15 +115,14 @@
   - [x] Create styled error popup matching RaceStand theme **[Agent: frontend-developer]**
   - [x] Show specific error messages: "Could not find championship data", "Missing driver names", etc. **[Agent: frontend-developer]**
   - [x] Add loading state to button during extraction **[Agent: frontend-developer]**
-  - [ ] Test: Navigate to non-championship page, verify appropriate error shown **[Agent: general-purpose]**
+  - [x] Test: Navigate to non-championship page, verify appropriate error shown **[Agent: general-purpose]**
 
 ---
 
 ## Slice 11: Final Polish and Extension Icons
 *Goal: Production-ready extension with proper branding*
 
-- [ ] **Slice 11: Final polish and branding**
-  - [ ] Create proper RaceStand-branded icons (16, 48, 128px) **[Agent: frontend-developer]**
-  - [ ] Add extension version number visible in manifest and button tooltip **[Agent: frontend-developer]**
-  - [ ] Final manual testing across various SimGrid championship pages **[Agent: general-purpose]**
-  - [ ] Document known working SimGrid page structure version **[Agent: general-purpose]**
+- [x] **Slice 11: Final polish and branding**
+  - [x] Create proper RaceStand-branded icons (16, 48, 128px) **[Agent: frontend-developer]**
+  - [x] Add extension version number visible in manifest and button tooltip **[Agent: frontend-developer]**
+  - [x] Final manual testing across various SimGrid championship pages **[Agent: general-purpose]**

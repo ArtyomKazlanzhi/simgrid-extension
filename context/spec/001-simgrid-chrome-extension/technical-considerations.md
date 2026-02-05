@@ -1,7 +1,7 @@
 # Technical Specification: SimGrid Chrome Extension
 
 - **Functional Specification:** `context/spec/001-simgrid-chrome-extension/functional-spec.md`
-- **Status:** Draft
+- **Status:** Completed
 - **Author(s):** AI Assistant
 
 ---
