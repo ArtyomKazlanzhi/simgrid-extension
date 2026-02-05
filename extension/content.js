@@ -214,22 +214,27 @@
       const detectionResults = {};
 
       // Method 0 (PRIORITY): Look for round/race headers - most reliable for total scheduled races
+      // Extract unique round numbers to avoid counting duplicates (e.g., "Round 1", "R1 - Spa", "R1 - Spa")
       const roundElements = doc.querySelectorAll('[class*="round"], h2, h3, h4, h5');
-      let roundCount = 0;
+      const uniqueRoundNumbers = new Set();
       const foundRounds = [];
       roundElements.forEach(el => {
         const text = el.textContent.trim();
-        if (/^R\d+|^Round\s*\d+|^Race\s*\d+/i.test(text)) {
-          roundCount++;
-          foundRounds.push(text.substring(0, 30));
+        // Match "Round 1", "R1", "Race 1" etc. and extract the number
+        const roundMatch = text.match(/^(?:Round\s*|R|Race\s*)(\d+)/i);
+        if (roundMatch) {
+          const roundNum = parseInt(roundMatch[1], 10);
+          if (!uniqueRoundNumbers.has(roundNum)) {
+            uniqueRoundNumbers.add(roundNum);
+            foundRounds.push(text.substring(0, 30));
+          }
         }
       });
 
-      if (roundCount > 0) {
-        console.log('[RaceStand] Found', roundCount, 'round headers:', foundRounds);
-        detectionResults.roundHeaders = roundCount;
-        // Return this as it's most reliable for total race count
-        return roundCount;
+      if (uniqueRoundNumbers.size > 0) {
+        console.log('[RaceStand] Found', uniqueRoundNumbers.size, 'unique rounds:', foundRounds);
+        detectionResults.roundHeaders = uniqueRoundNumbers.size;
+        return uniqueRoundNumbers.size;
       }
 
       // Method 1: Count race entries in a table
@@ -1240,6 +1245,19 @@
   }
 
   /**
+   * Gets the extension version from the manifest.
+   * @returns {string} The extension version string
+   */
+  function getExtensionVersion() {
+    try {
+      return chrome.runtime.getManifest().version;
+    } catch (e) {
+      console.warn('[RaceStand] Could not get extension version:', e);
+      return '1.0.0'; // Fallback version
+    }
+  }
+
+  /**
    * Injects the "Import to RaceStand" button into the page.
    * Only injects on standings pages.
    * The button is styled via styles.css (loaded by manifest.json).
@@ -1257,10 +1275,14 @@
       return;
     }
 
+    // Get extension version for the tooltip
+    const version = getExtensionVersion();
+
     // Create the import button
     const button = document.createElement('button');
     button.id = 'racestand-import-btn';
     button.textContent = 'Import to RaceStand';
+    button.title = `Import to RaceStand v${version}`;
 
     // Add click handler to extract and log data
     button.addEventListener('click', handleImportClick);
